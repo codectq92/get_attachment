@@ -42,10 +42,16 @@ def extract_filename_from_html(url):
     response.encoding = 'utf-8'  
     soup = BeautifulSoup(response.text, 'html.parser')  
     appendix1_element = soup.find('span', {'id': 'appendix1'})
+    
+    file_names = []
+
     if appendix1_element:  
-        a_element = appendix1_element.find('a')  
-        if a_element:  
-            return a_element.text.strip()  
+        for a_element in appendix1_element.find_all('a'):
+            name = a_element.text.strip()
+            file_names.append(name)  
+
+        print(file_names)
+        return file_names  
     return None 
   
 def get_pdf_links(url):  
@@ -58,35 +64,92 @@ def get_pdf_links(url):
         href = link.get('href')  # 获取链接  
         if href and 'pdf' in href.lower():  # 如果链接是PDF文件  
             pdf_links.append(href)  # 添加到列表中  
-            
+
     return pdf_links  
   
-def download_pdf(pdf_links, output_dir, url_prefix, filename):
+def download_pdf(pdf_links, output_dir, url_prefix, filenames):
     if not os.path.exists(output_dir):  # 如果输出目录不存在，创建它  
         os.makedirs(output_dir)
-    for link in pdf_links:
+
+    for link, filename in zip(pdf_links, filenames):
         url_pdf = link.lstrip('.')
         url = url_prefix + url_pdf  # 请替换为实际的链接
-
-        # url_pdf = url_pdf.lstrip('/')
-          
-        filename = os.path.join(output_dir, filename)  # 输出文件名，包含完整路径  
+        # url_pdf = url_pdf.lstrip('/')  
+        file_name = os.path.join(output_dir, filename)  # 输出文件名，包含完整路径
+        print(file_name)  
         with urllib.request.urlopen(url) as url:  
-            with open(filename, 'wb') as file:  
+            with open(file_name, 'wb') as file:  
                 file.write(url.read())  # 下载文件并保存到指定路径  
-  
-# 测试代码  
-# output_dir = "pdfs"  # 请替换为实际的下载文件保存路径
-url = "http://kjs.mof.gov.cn/zhengcefabu/202311/t20231124_3918214.htm"  # 请替换为实际的网页链接
-output_dir = get_dirname(url)  
-save_content_doc(url, output_dir)
-filename = extract_filename_from_html(url)  
-# if filename:  
-#     print("提取的文件名:", filename)  
-# else:  
-#     print("未找到文件名")
-last_slash_index = url.rfind("/")  
-field_before_last_slash = url[:last_slash_index]   
 
-pdf_links = get_pdf_links(url)  
-download_pdf(pdf_links, output_dir, field_before_last_slash, filename)
+#<li><a href="./202311/t20231124_3918214.htm" target="_blank" title="关于印发《代理记账基础工作规范（试行）》的通知">关于印发《代理记账基础工作规范（试行）》的通知</a><span>2023-11-24</span></li>
+def get_urls(url):
+    response = requests.get(url)
+    response.encoding = 'utf-8'
+    soup = BeautifulSoup(response.text, 'html.parser')
+    # ul class="liBox"
+    liBox_element = soup.find('ul', {'class': 'liBox'})
+    # print(liBox_element)
+    urls = []
+    if liBox_element:
+        for url in liBox_element.find_all('a'):  # 查找所有超链接  
+            href = url.get('href')  # 获取链接  
+            if href and 'htm' in href.lower():  # 如果链接是htm文件  
+                urls.append(href)  # 添加到列表中  
+        # print(urls)       
+        return urls
+    
+    return None
+
+def get_pagerji(url):
+    response = requests.get(url)
+
+    soup = BeautifulSoup(response.text, 'html.parser')
+    # ul class="liBox"
+    urls = []
+    for pagerji_element in soup.find_all('p', {'class': 'pagerji'}):
+        print(pagerji_element)
+    
+        if pagerji_element:
+            for url in pagerji_element.find_all('a'):
+                href = url.get('href')
+                if href and 'htm' in href.lower():
+                    urls.append(href)
+            print(urls)        
+    return urls
+    
+    return None
+    
+# 测试代码  
+
+# output_dir = "pdfs"  # 请替换为实际的下载文件保存路径
+# 定义处理urls的函数  
+def process_urls(urls): 
+# url = "http://kjs.mof.gov.cn/zhengcefabu/202311/t20231124_3918214.htm"  # 请替换为实际的网页链接
+    for url in urls:
+        output_dir = get_dirname(url)  
+        save_content_doc(url, output_dir)
+        filenames = extract_filename_from_html(url)  
+
+        last_slash_index = url.rfind("/")  
+        field_before_last_slash = url[:last_slash_index]   
+
+        pdf_links = get_pdf_links(url)  
+        download_pdf(pdf_links, output_dir, field_before_last_slash, filenames)
+        
+def main():
+    # pagerji_urls = get_pagerji("http://kjs.mof.gov.cn/zhengcefabu/")
+    # print(pagerji_urls)
+    
+    urls = get_urls("http://kjs.mof.gov.cn/zhengcefabu/index.htm")
+    
+    final_urls = []
+    
+    for url in urls:
+        sub_url = url.lstrip('./')
+        url = "http://kjs.mof.gov.cn/zhengcefabu/" + sub_url
+        final_urls.append(url)
+
+    process_urls(final_urls)
+
+if __name__ == "__main__":  
+    main()
